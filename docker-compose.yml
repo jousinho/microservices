@@ -1,0 +1,105 @@
+services:
+
+  # ── Base de datos ──────────────────────────────────────────────────────────
+
+  mysql-game:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "${MYSQL_PORT}:3306"
+    volumes:
+      - mysql_game_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - game_network
+
+  # ── game-service (PHP / Symfony) ───────────────────────────────────────────
+
+  game-service:
+    build:
+      context: ./game-service
+      dockerfile: Dockerfile
+      target: fpm
+    ports:
+      - "${GAME_SERVICE_PORT}:9000"
+    environment:
+      DATABASE_URL: "mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql-game:3306/${MYSQL_DATABASE}"
+      AUDIO_BRAIN_URL: ${AUDIO_BRAIN_URL}
+    volumes:
+      - ./game-service:/var/www/html
+    depends_on:
+      mysql-game:
+        condition: service_healthy
+    networks:
+      - game_network
+
+  game-cli:
+    build:
+      context: ./game-service
+      dockerfile: Dockerfile
+      target: cli
+    environment:
+      DATABASE_URL: "mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql-game:3306/${MYSQL_DATABASE}"
+      AUDIO_BRAIN_URL: ${AUDIO_BRAIN_URL}
+    volumes:
+      - ./game-service:/var/www/html
+    depends_on:
+      mysql-game:
+        condition: service_healthy
+    networks:
+      - game_network
+    command: tail -f /dev/null
+
+  # ── audio-brain (Python / FastAPI) ─────────────────────────────────────────
+
+  audio-brain:
+    build:
+      context: ./audio-brain
+      dockerfile: Dockerfile
+    ports:
+      - "${AUDIO_BRAIN_PORT}:8000"
+    volumes:
+      - ./audio-brain:/app
+      - audio_cache:/app/audio_cache
+    networks:
+      - game_network
+
+  # ── frontend (Vue.js / Vite) ───────────────────────────────────────────────
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "${FRONTEND_PORT}:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      VITE_GAME_SERVICE_URL: http://localhost:${GAME_SERVICE_PORT}
+      VITE_AUDIO_BRAIN_URL: http://localhost:${AUDIO_BRAIN_PORT}
+    depends_on:
+      - game-service
+      - audio-brain
+    networks:
+      - game_network
+
+# ── Volúmenes ──────────────────────────────────────────────────────────────────
+
+volumes:
+  mysql_game_data:
+  audio_cache:
+
+# ── Redes ──────────────────────────────────────────────────────────────────────
+
+networks:
+  game_network:
+    driver: bridge
