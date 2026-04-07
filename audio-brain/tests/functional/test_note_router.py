@@ -9,6 +9,8 @@ from src.main import app
 
 @pytest.fixture
 def client(tmp_path):
+    # NumpyNoteGenerator actúa como implementación de NoteGeneratorInterface,
+    # apuntando a un directorio temporal para no contaminar audio_cache real
     generator = NumpyNoteGenerator(cache_dir=tmp_path)
     service = GetRandomNoteService(note_generator=generator)
     app.dependency_overrides[get_note_service] = lambda: service
