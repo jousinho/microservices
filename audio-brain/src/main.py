@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from src.domain.note.catalog import NOTE_CATALOG
 from src.domain.note.value_object.difficulty import Difficulty
@@ -22,4 +23,12 @@ def _pregenerate_audio_cache() -> None:
 
 
 app = FastAPI(title="audio-brain", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
+
 app.include_router(note_router, prefix="/api")
