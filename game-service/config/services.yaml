@@ -10,6 +10,15 @@ services:
             - '../src/Kernel.php'
             - '../src/Infrastructure/Shared/Persistence/Doctrine/Migrations/'
 
-    # Binding explícito: interfaz de dominio → implementación Doctrine
+    # Repositorios Doctrine
     App\Domain\Game\Repository\SessionRepositoryInterface:
         class: App\Infrastructure\Game\Persistence\Doctrine\DoctrineSessionRepository
+
+    App\Domain\Game\Repository\RoundRepositoryInterface:
+        class: App\Infrastructure\Game\Persistence\Doctrine\DoctrineRoundRepository
+
+    # Cliente HTTP a audio-brain
+    App\Domain\Game\Repository\NoteClientInterface:
+        class: App\Infrastructure\Note\Http\AudioBrainHttpClient
+        arguments:
+            $audioBrainUrl: '%env(AUDIO_BRAIN_URL)%'

@@ -1,1 +1,5 @@
-# Las rutas se añadirán en STEP 6 cuando se creen los controllers
+game_controllers:
+    resource:
+        path: ../src/Infrastructure/Game/Http/Controller/
+        namespace: App\Infrastructure\Game\Http\Controller
+    type: attribute
