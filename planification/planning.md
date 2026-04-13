@@ -148,13 +148,162 @@ GitHub Actions: lint + tests unitarios + tests de integración por servicio.
 
 ---
 
-## V2.0 — Multijugador (pendiente de diseño detallado)
+## V2.0 — Multijugador
 
-Añadir sobre V1.0:
-- Servicio `realtime` en Go (WebSocket hub por sala)
-- RabbitMQ como broker de integración entre los 3 servicios
-- Concepto de `Room` con código de invitación, host, jugadores
-- Eventos de integración: `game.round.started`, `audio.note.ready`, `game.round.ended`, `game.ended`
-- Frontend: lobby, lista de jugadores en tiempo real, scores en vivo
+### Principio de diseño
 
-El dominio de game-service y audio-brain **no se reescribe**: se añaden adapters de infraestructura (RabbitMQ publisher/consumer) sin tocar Domain ni Application.
+V1 no se reescribe. Se añaden adapters de infraestructura (RabbitMQ publisher/consumer) sin tocar Domain ni Application. El modo single-player sigue funcionando igual.
+
+---
+
+### Nuevo bounded context: Room
+
+`Room` es un nuevo Aggregate Root en game-service. Representa una sala multijugador con código de invitación, jugadores y estado de la partida. Coexiste con `Session` (single-player).
+
+**Modelo de datos — nuevas tablas en `game_db`:**
+
+```
+rooms
+  id           UUID PK
+  code         VARCHAR(6) UNIQUE   ← código de invitación (ej: "ABC123")
+  host_id      UUID                ← referencia al player que creó la sala
+  status       ENUM(waiting, playing, ended)
+  difficulty   TINYINT             ← 1 | 2 | 3
+  total_rounds TINYINT
+  current_round TINYINT DEFAULT 0
+  created_at   DATETIME
+
+players
+  id           UUID PK
+  room_id      UUID FK → rooms.id
+  name         VARCHAR(50)
+  score        INT DEFAULT 0
+  joined_at    DATETIME
+
+room_rounds
+  id           UUID PK
+  room_id      UUID FK → rooms.id
+  round_number TINYINT
+  note_id      VARCHAR(10)         ← se rellena cuando audio-brain confirma la nota
+  correct_note VARCHAR(5)
+  status       ENUM(waiting, active, ended)
+  started_at   DATETIME
+  ended_at     DATETIME NULL
+
+room_answers
+  id           UUID PK
+  round_id     UUID FK → room_rounds.id
+  player_id    UUID FK → players.id
+  guess        VARCHAR(5)
+  is_correct   TINYINT(1)
+  submitted_at DATETIME
+```
+
+Cada ronda es **compartida** — todos los jugadores escuchan la misma nota. Cada jugador tiene su propia `room_answer`. La ronda termina cuando todos han respondido (o cuando expira el tiempo, en V2.1+).
+
+---
+
+### Flujo completo de una partida multijugador
+
+```
+1. Host crea sala         POST /api/rooms                  → { room_id, code: "ABC123" }
+2. Jugadores se unen      POST /api/rooms/{code}/join       → { player_id, room_id }
+3. Todos se conectan      WS  ws://localhost:8003/rooms/{code}
+4. Host inicia partida    POST /api/rooms/{id}/start
+
+5. game-service publica   → RabbitMQ: game.round.started   { room_id, round_id, difficulty }
+6. audio-brain consume    ← game.round.started
+   audio-brain publica    → RabbitMQ: audio.note.ready     { room_id, round_id, note_id, audio_url }
+7. realtime consume       ← audio.note.ready
+   realtime broadcast     → WebSocket a todos en la sala:  { type: "note.ready", payload: {...} }
+
+8. Cada jugador responde  POST /api/rooms/{id}/rounds/{id}/answer   { guess: "do" }
+9. game-service valida, actualiza score, publica:
+   → game.answer.submitted { room_id, player_id, answered_count, total_players }
+   realtime broadcast → { type: "answer.submitted", payload: { player, answered: true } }
+
+10. Cuando todos respondieron:
+    game-service publica → game.round.ended { room_id, correct_note, scores: {...} }
+    realtime broadcast  → { type: "round.ended", payload: {...} }
+
+11. Si era la última ronda:
+    game-service publica → game.ended { room_id, winner, final_scores: {...} }
+    realtime broadcast  → { type: "game.ended", payload: {...} }
+```
+
+---
+
+### Topología RabbitMQ
+
+```
+Exchange: game_events (type: topic, durable: true)
+
+Queue: audio_brain.game_events
+  bindings: game.round.started
+  consumer: audio-brain
+
+Queue: realtime.game_events
+  bindings: game.*, audio.*
+  consumer: realtime
+
+Dead Letter Exchange: game_events.dlx (type: direct)
+Queue: game_events.dead_letter
+  ← mensajes que fallan tras N reintentos
+```
+
+Routing keys publicados por cada servicio:
+- game-service → `game.round.started`, `game.answer.submitted`, `game.round.ended`, `game.ended`
+- audio-brain  → `audio.note.ready`
+
+---
+
+### Servicio realtime (Go)
+
+Responsabilidad única: **recibir eventos de RabbitMQ y hacer broadcast a los WebSocket clients de la sala correspondiente**. No recibe comandos del frontend. No tiene lógica de negocio.
+
+```
+realtime/
+├── main.go
+├── domain/room/
+│   └── hub.go                  # RoomHub: map[roomCode]→[]WebSocket clients
+├── application/broadcast/
+│   └── event_broadcaster.go    # consume RabbitMQ → busca hub → broadcast
+└── infrastructure/
+    ├── websocket/
+    │   └── handler.go          # HTTP upgrade → WebSocket, registra client en hub
+    └── rabbitmq/
+        └── consumer.go         # AMQP consumer, parsea mensajes, llama a broadcaster
+```
+
+**Mensajes WebSocket (server → client únicamente):**
+
+```json
+{ "type": "player.joined",    "payload": { "name": "Ana", "players": ["Ana","Bob"] } }
+{ "type": "round.started",    "payload": { "round_number": 1, "total_rounds": 5 } }
+{ "type": "note.ready",       "payload": { "note_id": "do_4", "audio_url": "/api/notes/do_4/audio?difficulty=1" } }
+{ "type": "answer.submitted", "payload": { "player": "Bob", "answered_count": 1, "total": 2 } }
+{ "type": "round.ended",      "payload": { "correct_note": "do", "scores": {"Ana": 3, "Bob": 2} } }
+{ "type": "game.ended",       "payload": { "winner": "Ana", "final_scores": {"Ana": 5, "Bob": 3} } }
+```
+
+El frontend sigue usando HTTP para los comandos (crear sala, unirse, responder). El WebSocket es canal de broadcast unidireccional (servidor → clientes).
+
+---
+
+### Cambios en servicios existentes
+
+**game-service** — se añade sin tocar lo existente:
+- Nueva entidad `Room` con `Player`, `RoomRound`, `RoomAnswer`
+- `RabbitMqEventBus` implementa `EventBusInterface` (nuevo puerto en Domain)
+- Application Services de Room publican al bus en vez de devolver eventos directamente
+- Nuevos controllers: `RoomController`
+
+**audio-brain** — se añade sin tocar lo existente:
+- Consumer RabbitMQ que escucha `game.round.started`
+- Al consumir: selecciona nota según difficulty, publica `audio.note.ready`
+- La generación de audio (dominio) no cambia en absoluto
+
+**Frontend** — se añade sin tocar lo existente:
+- Nueva vista `LobbyView` (crear/unirse a sala)
+- Nueva vista `MultiplayerGameView` (igual que GameView pero con lista de jugadores y WebSocket)
+- Composable `useWebSocket` para gestionar la conexión WS
