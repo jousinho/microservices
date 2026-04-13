@@ -12,7 +12,7 @@ class Round
         private readonly string $id,
         private readonly string $sessionId,
         private readonly int $roundNumber,
-        private ?NoteId $noteId,
+        private ?string $noteId,
         private ?string $correctNote,
         private readonly \DateTimeImmutable $startedAt,
         private ?\DateTimeImmutable $endedAt,
@@ -33,7 +33,7 @@ class Round
 
     public function assignNote(NoteId $noteId, string $correctNote): void
     {
-        $this->noteId = $noteId;
+        $this->noteId = $noteId->value();
         $this->correctNote = $correctNote;
     }
 
@@ -64,7 +64,7 @@ class Round
 
     public function noteId(): ?NoteId
     {
-        return $this->noteId;
+        return $this->noteId !== null ? NoteId::create($this->noteId) : null;
     }
 
     public function correctNote(): ?string

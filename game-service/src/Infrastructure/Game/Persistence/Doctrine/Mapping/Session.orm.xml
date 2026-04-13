@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping
+                                      https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+
+    <entity name="App\Domain\Game\Entity\Session"
+            table="sessions"
+            repository-class="App\Infrastructure\Game\Persistence\Doctrine\DoctrineSessionRepository">
+
+        <id name="id" type="string" length="36" />
+
+        <field name="status"
+               type="string"
+               length="20"
+               column="status"
+               enum-type="App\Domain\Game\ValueObject\SessionStatus" />
+
+        <field name="difficulty"   type="integer"            column="difficulty" />
+        <field name="totalRounds"  type="integer"            column="total_rounds" />
+        <field name="currentRound" type="integer"            column="current_round" />
+        <field name="score"        type="integer"            column="score" />
+        <field name="createdAt"    type="datetime_immutable" column="created_at" />
+
+        <!-- domainEvents es transitorio: no se persiste -->
+        <transient name="domainEvents" />
+
+    </entity>
+
+</doctrine-mapping>

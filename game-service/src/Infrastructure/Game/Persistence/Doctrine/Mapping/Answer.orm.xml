@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping
+                                      https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+
+    <entity name="App\Domain\Game\Entity\Answer" table="answers">
+
+        <id name="id" type="string" length="36" />
+
+        <field name="roundId"        type="string"             column="round_id"         length="36" />
+        <field name="guess"          type="string"             column="guess"            length="20" />
+        <field name="isCorrect"      type="boolean"            column="is_correct" />
+        <field name="responseTimeMs" type="integer"            column="response_time_ms" />
+        <field name="submittedAt"    type="datetime_immutable" column="submitted_at" />
+
+    </entity>
+
+</doctrine-mapping>

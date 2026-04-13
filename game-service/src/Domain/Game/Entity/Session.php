@@ -20,10 +20,10 @@ class Session
     private function __construct(
         private readonly string $id,
         private SessionStatus $status,
-        private readonly Difficulty $difficulty,
+        private readonly int $difficulty,
         private readonly int $totalRounds,
         private int $currentRound,
-        private Score $score,
+        private int $score,
         private readonly \DateTimeImmutable $createdAt,
     ) {}
 
@@ -32,10 +32,10 @@ class Session
         $session = new self(
             id: $id,
             status: SessionStatus::Active,
-            difficulty: $difficulty,
+            difficulty: $difficulty->value(),
             totalRounds: $totalRounds,
             currentRound: 0,
-            score: Score::zero(),
+            score: 0,
             createdAt: new \DateTimeImmutable(),
         );
 
@@ -76,12 +76,12 @@ class Session
 
         $this->status = SessionStatus::Ended;
 
-        $this->record(new SessionWasEnded($this->id, $this->score->value()));
+        $this->record(new SessionWasEnded($this->id, $this->score));
     }
 
     public function addScore(Score $points): void
     {
-        $this->score = $this->score->add($points);
+        $this->score += $points->value();
     }
 
     /** @return object[] */
@@ -105,7 +105,7 @@ class Session
 
     public function difficulty(): Difficulty
     {
-        return $this->difficulty;
+        return Difficulty::create($this->difficulty);
     }
 
     public function totalRounds(): int
@@ -120,7 +120,7 @@ class Session
 
     public function score(): Score
     {
-        return $this->score;
+        return Score::create($this->score);
     }
 
     public function createdAt(): \DateTimeImmutable
