@@ -115,10 +115,14 @@ GET    /api/notes/{note_id}/audio        Servir archivo .wav
 ## Infraestructura Docker — V1.0
 
 ```
-game-service   → php-fpm (8001) + php-cli (migraciones)
-audio-brain    → uvicorn (8002)  ← genera WAVs al arrancar, sin BD
+nginx          → servidor HTTP (8001) — proxy inverso a php-fpm
+php-fpm        → PHP-FPM, solo accesible internamente via FastCGI
+php-cli        → PHP-CLI para migraciones y comandos Symfony
+phpunit        → PHP-CLI con APP_ENV=test, apunta a mysql-test
+mysql-game     → MySQL 8 (3307) — base de datos principal
+mysql-test     → MySQL 8 (3308) — base de datos de tests, en tmpfs
+audio-brain    → uvicorn (8002) — genera WAVs al arrancar, sin BD
 frontend       → vite dev server (3000)
-mysql-game     → MySQL 8 (3307)
 ```
 
 Sin RabbitMQ. Sin contenedor realtime. Sin mysql-audio.

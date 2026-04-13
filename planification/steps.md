@@ -16,7 +16,8 @@ microservices/
 ├── .env
 ├── .env.example
 ├── game-service/
-│   └── Dockerfile
+│   ├── Dockerfile
+│   └── nginx.conf
 ├── audio-brain/
 │   └── Dockerfile
 └── frontend/
@@ -25,8 +26,11 @@ microservices/
 
 Servicios en docker-compose.yml:
 - `mysql-game` — MySQL 8, healthcheck, puerto 3307, volumen persistente
-- `game-service` (php-fpm) — depende de mysql-game (healthy), puerto 8001
-- `game-cli` (php-cli) — mismo Dockerfile, para migraciones y comandos Symfony
+- `mysql-test` — MySQL 8, healthcheck, puerto 3308, tmpfs (sin persistencia, para tests)
+- `nginx` — nginx:alpine, puerto 8001, proxy inverso a php-fpm via FastCGI
+- `php-fpm` — PHP-FPM, sin puerto expuesto al host, solo accesible internamente
+- `php-cli` — mismo Dockerfile target cli, para migraciones y comandos Symfony
+- `phpunit` — mismo Dockerfile target cli, APP_ENV=test, apunta a mysql-test
 - `audio-brain` — uvicorn, sin dependencias de BD, puerto 8002
 - `frontend` — vite dev server, puerto 3000
 
@@ -34,7 +38,8 @@ Red interna compartida: `game_network`.
 
 Sin RabbitMQ. Sin contenedor realtime. Sin mysql-audio.
 
-Verificación: `docker compose up -d` levanta los 5 servicios sin errores.
+Verificación: `docker compose up -d` levanta los servicios sin errores.
+Comprobación: `curl -I http://localhost:8001` debe devolver headers `Server: nginx` y `X-Powered-By: PHP`.
 
 ---
 
