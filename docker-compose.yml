@@ -62,11 +62,14 @@ services:
     environment:
       DATABASE_URL: "mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql-game:3306/${MYSQL_DATABASE}?serverVersion=8.0&charset=utf8mb4"
       AUDIO_BRAIN_URL: ${AUDIO_BRAIN_URL}
+      RABBITMQ_URL: ${RABBITMQ_URL}
     volumes:
       - ./game-service:/var/www/html
       - game_vendor:/var/www/html/vendor
     depends_on:
       mysql-game:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     networks:
       - game_network
@@ -79,11 +82,14 @@ services:
     environment:
       DATABASE_URL: "mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql-game:3306/${MYSQL_DATABASE}?serverVersion=8.0&charset=utf8mb4"
       AUDIO_BRAIN_URL: ${AUDIO_BRAIN_URL}
+      RABBITMQ_URL: ${RABBITMQ_URL}
     volumes:
       - ./game-service:/var/www/html
       - game_vendor:/var/www/html/vendor
     depends_on:
       mysql-game:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     networks:
       - game_network
@@ -107,6 +113,24 @@ services:
       - game_network
     command: tail -f /dev/null
 
+  # ── Mensajería ────────────────────────────────────────────────────────────
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    ports:
+      - "${RABBITMQ_PORT}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT}:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - game_network
+
   # ── audio-brain (Python / FastAPI) ─────────────────────────────────────────
 
   audio-brain:
@@ -118,6 +142,11 @@ services:
     volumes:
       - ./audio-brain:/app
       - audio_cache:/app/audio_cache
+    environment:
+      RABBITMQ_URL: ${RABBITMQ_URL}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     networks:
       - game_network
 
