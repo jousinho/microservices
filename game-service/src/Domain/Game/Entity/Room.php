@@ -32,9 +32,9 @@ class Room
 
     private function __construct(
         private readonly string $id,
-        private readonly RoomCode $code,
+        private readonly string $code,
         private RoomStatus $status,
-        private readonly Difficulty $difficulty,
+        private readonly int $difficulty,
         private readonly int $totalRounds,
         private readonly \DateTimeImmutable $createdAt,
     ) {}
@@ -46,11 +46,13 @@ class Room
         string $hostId,
         string $hostName,
     ): self {
+        $code = RoomCode::generate()->value();
+
         $room = new self(
             id: $id,
-            code: RoomCode::generate(),
+            code: $code,
             status: RoomStatus::Waiting,
-            difficulty: $difficulty,
+            difficulty: $difficulty->value(),
             totalRounds: $totalRounds,
             createdAt: new \DateTimeImmutable(),
         );
@@ -59,12 +61,41 @@ class Room
 
         $room->record(new RoomWasCreated(
             $id,
-            $room->code->value(),
+            $code,
             $difficulty->value(),
             $totalRounds,
             $hostId,
             $hostName,
         ));
+
+        return $room;
+    }
+
+    public static function reconstitute(
+        string $id,
+        string $code,
+        RoomStatus $status,
+        int $difficulty,
+        int $totalRounds,
+        int $currentRoundNumber,
+        \DateTimeImmutable $createdAt,
+        array $players,
+        array $rounds,
+        array $playerIdsWhoAnsweredCurrentRound,
+    ): self {
+        $room = new self(
+            id: $id,
+            code: $code,
+            status: $status,
+            difficulty: $difficulty,
+            totalRounds: $totalRounds,
+            createdAt: $createdAt,
+        );
+
+        $room->currentRoundNumber = $currentRoundNumber;
+        $room->players = $players;
+        $room->rounds = $rounds;
+        $room->playerIdsWhoAnsweredCurrentRound = $playerIdsWhoAnsweredCurrentRound;
 
         return $room;
     }
@@ -97,7 +128,7 @@ class Room
             $this->id,
             $firstRoundId,
             $this->currentRoundNumber,
-            $this->difficulty->value(),
+            $this->difficulty,
         ));
 
         return $round;
@@ -123,10 +154,21 @@ class Room
             $this->id,
             $roundId,
             $this->currentRoundNumber,
-            $this->difficulty->value(),
+            $this->difficulty,
         ));
 
         return $round;
+    }
+
+    public function assignNoteToCurrentRound(string $noteId, string $correctNote): void
+    {
+        $round = $this->currentRound();
+
+        if ($round === null) {
+            throw new \DomainException('No current round to assign note to');
+        }
+
+        $round->assignNote($noteId, $correctNote);
     }
 
     public function submitAnswer(string $playerId, string $roundId, string $guess, bool $isCorrect): void
@@ -169,7 +211,7 @@ class Room
 
     public function code(): RoomCode
     {
-        return $this->code;
+        return RoomCode::fromString($this->code);
     }
 
     public function status(): RoomStatus
@@ -179,7 +221,7 @@ class Room
 
     public function difficulty(): Difficulty
     {
-        return $this->difficulty;
+        return Difficulty::create($this->difficulty);
     }
 
     public function totalRounds(): int
@@ -192,6 +234,17 @@ class Room
         return $this->currentRoundNumber;
     }
 
+    public function currentRound(): ?RoomRound
+    {
+        foreach ($this->rounds as $round) {
+            if ($round->roundNumber() === $this->currentRoundNumber) {
+                return $round;
+            }
+        }
+
+        return null;
+    }
+
     /** @return Player[] */
     public function players(): array
     {
@@ -202,6 +255,12 @@ class Room
     public function rounds(): array
     {
         return $this->rounds;
+    }
+
+    /** @return string[] */
+    public function answeredPlayerIdsCurrentRound(): array
+    {
+        return $this->playerIdsWhoAnsweredCurrentRound;
     }
 
     public function createdAt(): \DateTimeImmutable

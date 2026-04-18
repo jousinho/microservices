@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Game\Http\Controller;
 
+use App\Application\Game\Command\SubmitAnswerCommand;
 use App\Application\Game\Service\SubmitAnswerService;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -20,15 +21,13 @@ final class RoundController
     #[Route('/rounds/{id}/answer', methods: ['POST'])]
     public function answer(string $id, Request $request): JsonResponse
     {
-        $body  = json_decode($request->getContent(), true) ?? [];
-        $guess = $body['guess'] ?? null;
-
-        if (!is_string($guess) || trim($guess) === '') {
-            return new JsonResponse(['error' => 'guess is required'], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
+        $body = json_decode($request->getContent(), true) ?? [];
 
         try {
-            $result = $this->submitAnswer->execute(roundId: $id, guess: $guess);
+            $command = new SubmitAnswerCommand($id, $body['guess'] ?? null);
+            $result  = $this->submitAnswer->execute($command);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
         } catch (\DomainException $e) {
             return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_NOT_FOUND);
         }

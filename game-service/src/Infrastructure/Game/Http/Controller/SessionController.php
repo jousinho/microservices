@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Game\Http\Controller;
 
+use App\Application\Game\Command\StartSessionCommand;
+use App\Application\Game\Service\GetSessionScoreboardService;
+use App\Application\Game\Service\GetSessionService;
 use App\Application\Game\Service\NextRoundService;
 use App\Application\Game\Service\StartSessionService;
-use App\Domain\Game\Repository\SessionRepositoryInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
-use Symfony\Component\Uid\Uuid;
 
 #[Route('/api')]
 final class SessionController
@@ -19,7 +20,8 @@ final class SessionController
     public function __construct(
         private readonly StartSessionService $startSession,
         private readonly NextRoundService $nextRound,
-        private readonly SessionRepositoryInterface $sessions,
+        private readonly GetSessionService $getSession,
+        private readonly GetSessionScoreboardService $getScoreboard,
     ) {}
 
     #[Route('/sessions', methods: ['POST'])]
@@ -27,25 +29,10 @@ final class SessionController
     {
         $body = json_decode($request->getContent(), true) ?? [];
 
-        $difficulty  = $body['difficulty'] ?? null;
-        $totalRounds = $body['total_rounds'] ?? null;
-
-        if (!is_int($difficulty) || !in_array($difficulty, [1, 2, 3], true)) {
-            return new JsonResponse(['error' => 'difficulty must be 1, 2 or 3'], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
-
-        if (!is_int($totalRounds) || $totalRounds < 1) {
-            return new JsonResponse(['error' => 'total_rounds must be a positive integer'], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
-
         try {
-            $result = $this->startSession->execute(
-                sessionId:   Uuid::v4()->toRfc4122(),
-                roundId:     Uuid::v4()->toRfc4122(),
-                difficulty:  $difficulty,
-                totalRounds: $totalRounds,
-            );
-        } catch (\DomainException $e) {
+            $command = new StartSessionCommand($body['difficulty'] ?? null, $body['total_rounds'] ?? null);
+            $result  = $this->startSession->execute($command);
+        } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
@@ -55,30 +42,20 @@ final class SessionController
     #[Route('/sessions/{id}', methods: ['GET'])]
     public function show(string $id): JsonResponse
     {
-        $session = $this->sessions->findById($id);
+        $data = $this->getSession->execute($id);
 
-        if ($session === null) {
+        if ($data === null) {
             return new JsonResponse(['error' => 'Session not found'], Response::HTTP_NOT_FOUND);
         }
 
-        return new JsonResponse([
-            'session_id'    => $session->id(),
-            'status'        => $session->status()->value,
-            'difficulty'    => $session->difficulty()->value(),
-            'total_rounds'  => $session->totalRounds(),
-            'current_round' => $session->currentRound(),
-            'score'         => $session->score()->value(),
-        ]);
+        return new JsonResponse($data);
     }
 
     #[Route('/sessions/{id}/next-round', methods: ['POST'])]
     public function nextRound(string $id): JsonResponse
     {
         try {
-            $result = $this->nextRound->execute(
-                sessionId: $id,
-                roundId:   Uuid::v4()->toRfc4122(),
-            );
+            $result = $this->nextRound->execute($id);
         } catch (\DomainException $e) {
             return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_CONFLICT);
         }
@@ -89,20 +66,16 @@ final class SessionController
     #[Route('/sessions/{id}/scoreboard', methods: ['GET'])]
     public function scoreboard(string $id): JsonResponse
     {
-        $session = $this->sessions->findById($id);
+        try {
+            $data = $this->getScoreboard->execute($id);
+        } catch (\DomainException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_CONFLICT);
+        }
 
-        if ($session === null) {
+        if ($data === null) {
             return new JsonResponse(['error' => 'Session not found'], Response::HTTP_NOT_FOUND);
         }
 
-        if ($session->status()->value === 'active') {
-            return new JsonResponse(['error' => 'Session is still active'], Response::HTTP_CONFLICT);
-        }
-
-        return new JsonResponse([
-            'session_id'   => $session->id(),
-            'score'        => $session->score()->value(),
-            'total_rounds' => $session->totalRounds(),
-        ]);
+        return new JsonResponse($data);
     }
 }

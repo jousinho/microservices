@@ -22,3 +22,13 @@ services:
         class: App\Infrastructure\Note\Http\AudioBrainHttpClient
         arguments:
             $audioBrainUrl: '%env(AUDIO_BRAIN_URL)%'
+
+    # Repositorio Room
+    App\Domain\Game\Repository\RoomRepositoryInterface:
+        class: App\Infrastructure\Game\Persistence\Doctrine\DoctrineRoomRepository
+
+    # Event Bus RabbitMQ
+    App\Domain\Game\Repository\EventBusInterface:
+        class: App\Infrastructure\Shared\Messaging\RabbitMqEventBus
+        arguments:
+            $rabbitmqUrl: '%env(RABBITMQ_URL)%'

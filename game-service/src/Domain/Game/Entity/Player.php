@@ -20,6 +20,14 @@ final class Player
         return new self($id, $roomId, $name, $isHost);
     }
 
+    public static function reconstitute(string $id, string $roomId, string $name, bool $isHost, int $score): self
+    {
+        $player = new self($id, $roomId, $name, $isHost);
+        $player->score = $score;
+
+        return $player;
+    }
+
     public function addScore(int $points): void
     {
         $this->score += $points;

@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit\Application\Game\Service;
 
+use App\Application\Game\Command\SubmitAnswerCommand;
 use App\Application\Game\Service\SubmitAnswerService;
 use App\Domain\Game\Entity\Round;
 use App\Domain\Game\Entity\Session;
-use App\Domain\Game\Event\AnswerWasSubmitted;
-use App\Domain\Game\Event\SessionWasEnded;
 use App\Domain\Game\Repository\RoundRepositoryInterface;
 use App\Domain\Game\Repository\SessionRepositoryInterface;
 use App\Domain\Game\ValueObject\Difficulty;
@@ -46,7 +45,7 @@ final class SubmitAnswerServiceTest extends TestCase
         return $session;
     }
 
-    public function test_submitting_answer__correct__should_emit_AnswerWasSubmitted_with_is_correct_true(): void
+    public function test_submitting_answer__correct__should_return_is_correct_true(): void
     {
         $round   = $this->makeRoundWithNote('session-1', 'round-1', 'do');
         $session = $this->makeSession('session-1', 3);
@@ -54,13 +53,12 @@ final class SubmitAnswerServiceTest extends TestCase
         $this->rounds->method('findById')->willReturn($round);
         $this->sessions->method('findById')->willReturn($session);
 
-        $result = $this->service->execute('round-1', 'do');
+        $result = $this->service->execute(new SubmitAnswerCommand('round-1', 'do'));
 
-        $this->assertContains(AnswerWasSubmitted::class, $result['events']);
         $this->assertTrue($result['is_correct']);
     }
 
-    public function test_submitting_answer__wrong__should_emit_AnswerWasSubmitted_with_is_correct_false(): void
+    public function test_submitting_answer__wrong__should_return_is_correct_false(): void
     {
         $round   = $this->makeRoundWithNote('session-1', 'round-1', 'do');
         $session = $this->makeSession('session-1', 3);
@@ -68,9 +66,8 @@ final class SubmitAnswerServiceTest extends TestCase
         $this->rounds->method('findById')->willReturn($round);
         $this->sessions->method('findById')->willReturn($session);
 
-        $result = $this->service->execute('round-1', 're');
+        $result = $this->service->execute(new SubmitAnswerCommand('round-1', 're'));
 
-        $this->assertContains(AnswerWasSubmitted::class, $result['events']);
         $this->assertFalse($result['is_correct']);
     }
 
@@ -82,7 +79,7 @@ final class SubmitAnswerServiceTest extends TestCase
         $this->rounds->method('findById')->willReturn($round);
         $this->sessions->method('findById')->willReturn($session);
 
-        $result = $this->service->execute('round-1', 'mi');
+        $result = $this->service->execute(new SubmitAnswerCommand('round-1', 'mi'));
 
         $this->assertSame(1, $result['score']);
     }
@@ -95,12 +92,12 @@ final class SubmitAnswerServiceTest extends TestCase
         $this->rounds->method('findById')->willReturn($round);
         $this->sessions->method('findById')->willReturn($session);
 
-        $result = $this->service->execute('round-1', 'fa');
+        $result = $this->service->execute(new SubmitAnswerCommand('round-1', 'fa'));
 
         $this->assertSame(0, $result['score']);
     }
 
-    public function test_submitting_answer__last_round_correct__should_emit_SessionWasEnded_event(): void
+    public function test_submitting_answer__last_round__should_mark_session_as_ended(): void
     {
         $session = Session::create('session-1', Difficulty::create(1), 1);
         $session->startNextRound('round-0');
@@ -111,9 +108,8 @@ final class SubmitAnswerServiceTest extends TestCase
         $this->rounds->method('findById')->willReturn($round);
         $this->sessions->method('findById')->willReturn($session);
 
-        $result = $this->service->execute('round-0', 'sol');
+        $result = $this->service->execute(new SubmitAnswerCommand('round-0', 'sol'));
 
-        $this->assertContains(SessionWasEnded::class, $result['events']);
         $this->assertTrue($result['session_ended']);
     }
 
@@ -124,6 +120,6 @@ final class SubmitAnswerServiceTest extends TestCase
         $this->expectException(\DomainException::class);
         $this->expectExceptionMessage('Round "missing" not found');
 
-        $this->service->execute('missing', 'do');
+        $this->service->execute(new SubmitAnswerCommand('missing', 'do'));
     }
 }
