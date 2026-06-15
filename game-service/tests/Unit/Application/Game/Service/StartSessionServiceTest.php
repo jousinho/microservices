@@ -36,12 +36,12 @@ final class StartSessionServiceTest extends TestCase
 
         $result = $this->service->execute(new StartSessionCommand(2, 5));
 
-        $this->assertArrayHasKey('session_id', $result);
-        $this->assertSame('active', $result['status']);
-        $this->assertSame(2, $result['difficulty']);
-        $this->assertSame(5, $result['total_rounds']);
-        $this->assertSame(1, $result['current_round']);
-        $this->assertSame(0, $result['score']);
+        $this->assertNotEmpty($result->session_id);
+        $this->assertSame('active', $result->status);
+        $this->assertSame(2, $result->difficulty);
+        $this->assertSame(5, $result->total_rounds);
+        $this->assertSame(1, $result->current_round);
+        $this->assertSame(0, $result->score);
     }
 
     public function test_starting_session__should_assign_note_to_first_round(): void
@@ -52,8 +52,8 @@ final class StartSessionServiceTest extends TestCase
 
         $result = $this->service->execute(new StartSessionCommand(1, 3));
 
-        $this->assertSame('re_4', $result['note_id']);
-        $this->assertSame('http://audio-brain/api/notes/re_4/audio', $result['audio_url']);
+        $this->assertSame('re_4', $result->note_id);
+        $this->assertSame('http://audio-brain/api/notes/re_4/audio', $result->audio_url);
     }
 
     public function test_starting_session__should_return_round_id(): void
@@ -64,8 +64,7 @@ final class StartSessionServiceTest extends TestCase
 
         $result = $this->service->execute(new StartSessionCommand(1, 3));
 
-        $this->assertArrayHasKey('round_id', $result);
-        $this->assertNotEmpty($result['round_id']);
+        $this->assertNotEmpty($result->round_id);
     }
 
     public function test_starting_session__should_save_session_and_round(): void

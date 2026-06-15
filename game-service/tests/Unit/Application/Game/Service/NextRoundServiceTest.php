@@ -41,9 +41,9 @@ final class NextRoundServiceTest extends TestCase
 
         $result = $this->service->execute('session-1');
 
-        $this->assertSame('fa_4', $result['note_id']);
-        $this->assertSame('http://audio-brain/api/notes/fa_4/audio', $result['audio_url']);
-        $this->assertSame(1, $result['round_number']);
+        $this->assertSame('fa_4', $result->note_id);
+        $this->assertSame('http://audio-brain/api/notes/fa_4/audio', $result->audio_url);
+        $this->assertSame(1, $result->round_number);
     }
 
     public function test_next_round__should_return_round_id(): void
@@ -58,8 +58,7 @@ final class NextRoundServiceTest extends TestCase
 
         $result = $this->service->execute('session-1');
 
-        $this->assertArrayHasKey('round_id', $result);
-        $this->assertNotEmpty($result['round_id']);
+        $this->assertNotEmpty($result->round_id);
     }
 
     public function test_next_round__should_save_session_and_round(): void
@@ -96,6 +95,9 @@ final class NextRoundServiceTest extends TestCase
         $session->pullDomainEvents();
 
         $this->sessions->method('findById')->willReturn($session);
+        $this->noteClient->method('getRandomNote')->willReturn(
+            new NoteData('do_4', 'do', 'http://audio-brain/api/notes/do_4/audio')
+        );
 
         $this->expectException(\DomainException::class);
 
@@ -109,6 +111,9 @@ final class NextRoundServiceTest extends TestCase
         $session->pullDomainEvents();
 
         $this->sessions->method('findById')->willReturn($session);
+        $this->noteClient->method('getRandomNote')->willReturn(
+            new NoteData('do_4', 'do', 'http://audio-brain/api/notes/do_4/audio')
+        );
 
         $this->expectException(\DomainException::class);
 

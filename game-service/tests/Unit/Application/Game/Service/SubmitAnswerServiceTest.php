@@ -55,7 +55,7 @@ final class SubmitAnswerServiceTest extends TestCase
 
         $result = $this->service->execute(new SubmitAnswerCommand('round-1', 'do'));
 
-        $this->assertTrue($result['is_correct']);
+        $this->assertTrue($result->is_correct);
     }
 
     public function test_submitting_answer__wrong__should_return_is_correct_false(): void
@@ -68,7 +68,7 @@ final class SubmitAnswerServiceTest extends TestCase
 
         $result = $this->service->execute(new SubmitAnswerCommand('round-1', 're'));
 
-        $this->assertFalse($result['is_correct']);
+        $this->assertFalse($result->is_correct);
     }
 
     public function test_submitting_answer__correct__should_increment_session_score(): void
@@ -81,7 +81,7 @@ final class SubmitAnswerServiceTest extends TestCase
 
         $result = $this->service->execute(new SubmitAnswerCommand('round-1', 'mi'));
 
-        $this->assertSame(1, $result['score']);
+        $this->assertSame(1, $result->score);
     }
 
     public function test_submitting_answer__wrong__should_not_increment_score(): void
@@ -94,7 +94,7 @@ final class SubmitAnswerServiceTest extends TestCase
 
         $result = $this->service->execute(new SubmitAnswerCommand('round-1', 'fa'));
 
-        $this->assertSame(0, $result['score']);
+        $this->assertSame(0, $result->score);
     }
 
     public function test_submitting_answer__last_round__should_mark_session_as_ended(): void
@@ -110,7 +110,7 @@ final class SubmitAnswerServiceTest extends TestCase
 
         $result = $this->service->execute(new SubmitAnswerCommand('round-0', 'sol'));
 
-        $this->assertTrue($result['session_ended']);
+        $this->assertTrue($result->session_ended);
     }
 
     public function test_submitting_answer__when_round_not_found__should_raise_exception(): void
