@@ -150,6 +150,22 @@ services:
     networks:
       - game_network
 
+  # ── realtime (Go / Gin / WebSockets) ──────────────────────────────────────
+
+  realtime:
+    build:
+      context: ./realtime
+      dockerfile: Dockerfile
+    ports:
+      - "${REALTIME_PORT}:8000"
+    environment:
+      RABBITMQ_URL: ${RABBITMQ_URL}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - game_network
+
   # ── frontend (Vue.js / Vite) ───────────────────────────────────────────────
 
   frontend:
@@ -164,6 +180,7 @@ services:
     environment:
       VITE_GAME_SERVICE_URL: http://localhost:${GAME_SERVICE_PORT}
       VITE_AUDIO_BRAIN_URL: http://localhost:${AUDIO_BRAIN_PORT}
+      VITE_REALTIME_URL: ws://localhost:${REALTIME_PORT}
     depends_on:
       - php-fpm
       - audio-brain
